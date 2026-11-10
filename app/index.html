@@ -4,12 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lugano Orders</title>
+<meta name="description" content="Lugano Orders: live stock, orders and lists.">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="/logo.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Lugano">
 <link rel="stylesheet" href="/style.css">
+<style>
+  html,body{height:100%;overflow:hidden}
+  body{display:flex;flex-direction:column}
+  #inst{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#111827;color:#fff;font-size:15px;line-height:1.3}
+  #inst[hidden]{display:none}
+  #inst img{width:30px;height:30px;border-radius:7px;background:#fff;flex:none}
+  #inst span{flex:1}
+  #inst button{border:0;border-radius:999px;font:700 14px system-ui,sans-serif;padding:8px 14px}
+  #instGo{background:#fff;color:#111827}
+  #instNo{background:none;color:#cbd5e1;padding:8px 6px!important;font-size:18px!important}
+  #app{flex:1;width:100%;border:0;display:block;background:#fff}
+  #splash{position:fixed;inset:0;z-index:5;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px}
+  #splash[hidden]{display:none}
+  #splash img{width:150px;height:auto}
+  #splash p{color:var(--muted);margin:0;font-size:16px}
+  .dots::after{content:'';animation:dots 1.4s steps(4,end) infinite}
+  @keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+  #sharebox{position:fixed;inset:0;z-index:10;background:#fff;overflow:auto}
+  #sharebox[hidden]{display:none}
+  #sharebox main{padding-top:18px}
+  #sharebox h1{font-size:26px}
+</style>
 </head>
 <body>
-<header><div class="bar"><a class="brand" href="/"><img src="/wordmark.png" alt="LUGANO" width="122" height="22"></a></div></header>
-<main><p>Opening the Lugano Orders app…</p><noscript><p>Turn on JavaScript to open the app.</p></noscript></main>
+<div id="inst" hidden role="region" aria-label="Install the app">
+  <img src="/icons/icon-192.png" alt=""><span>Install Lugano Orders on this phone</span>
+  <button id="instGo">Install</button><button id="instNo" aria-label="Not now">✕</button>
+</div>
+<iframe id="app" title="Lugano Orders" allow="clipboard-write; web-share"></iframe>
+<div id="splash"><img src="/wordmark.png" alt="LUGANO"><p id="splashMsg" class="dots">Opening the app</p></div>
+<div id="sharebox" hidden><main id="box"></main></div>
+<noscript><p style="padding:20px">Turn on JavaScript to open the app.</p></noscript>
+<script>window.LUGANO_SHELL = true;</script>
 <script src="/go.js"></script>
+<script src="/install.js"></script>
+<script src="/share/share.js"></script>
+<script src="/app/shell.js"></script>
 </body>
 </html>

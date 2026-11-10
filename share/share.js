@@ -3,8 +3,10 @@
  * The app opens this page, which says it is ready; the app sends its files (photo cards, a PDF) here, and this page,
  * being a normal tab on Lugano's own site, shares them with WhatsApp or any app when the person taps the button.
  * Files are only taken from the app's own frame (*-script.googleusercontent.com) and are never uploaded anywhere.
+ * The installed app (app.lugano.in/app) shows the same screen over the app instead of a tab: it sets
+ * LUGANO_SHARE.onBack, and this file then doesn't run its tab start-up below.
  */
-var LUGANO_SHARE = { files: [], title: '' };
+var LUGANO_SHARE = { files: [], title: '', onBack: null };
 function luganoAppOrigin(o) { return /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(String(o || '')); }
 function luganoShareMessage(e) {
   if (!luganoAppOrigin(e.origin) || !e.data || e.data.type !== 'lugano-share' || !Array.isArray(e.data.files)) return false;
@@ -44,9 +46,12 @@ function luganoShareShow() {
       });
     };
   });
-  document.getElementById('back').onclick = function () { window.close(); setTimeout(function () { document.getElementById('back').textContent = 'Close this tab to go back'; }, 300); };
+  document.getElementById('back').onclick = function () {
+    if (LUGANO_SHARE.onBack) return LUGANO_SHARE.onBack();
+    window.close(); setTimeout(function () { document.getElementById('back').textContent = 'Close this tab to go back'; }, 300); };
 }
 (function () {
+  if (window.LUGANO_SHELL) return;
   window.addEventListener('message', luganoShareMessage);
   if (window.opener) { try { window.opener.postMessage({ type: 'lugano-share-ready' }, '*'); } catch (e) { /* no app */ } }
   else document.getElementById('box').innerHTML = '<h1>Nothing to share</h1><p>Open this from the Lugano Orders app: Share → Photo cards or PDF.</p><p><a href="/">Lugano Orders</a></p>';

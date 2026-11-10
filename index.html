@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lugano Orders</title>
 <meta name="description" content="Lugano Orders: the order booking app of Lugano, for our salesmen and the shops we supply.">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="logo.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Lugano">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,11 +30,31 @@
   <h2>Signing in</h2>
   <p>You sign in with your Google account. The app asks Google only for your email address, so it knows who you are and what you may see. It does not read your Gmail, Drive, contacts or anything else in your Google account. See our <a href="privacy.html">privacy policy</a> for the details.</p>
 
-  <div class="note">To open the app, use the link Lugano sent you. For help, contact your Lugano salesman or our office.</div>
+  <div class="note">To open the app, use the link Lugano sent you, or <a href="/app/">open it here</a>. For help, contact your Lugano salesman or our office.</div>
+
+  <h2 id="install">Install the app</h2>
+  <p>Put Lugano Orders on your phone's home screen. It opens full screen like any other app, and Lugano links you receive open in it.</p>
+  <p id="installNow" hidden><button class="big" id="installBtn" style="background:#111827">Install Lugano Orders</button></p>
+  <p id="installDone" hidden><b>Lugano Orders is installed on this phone.</b> Open it from the home screen.</p>
+  <h3>Android phones (Chrome)</h3>
+  <p>Open <a href="/app/">app.lugano.in/app</a> in Chrome and tap <b>Install</b> on the black bar at the top. If you don't see it, tap Chrome's <b>⋮</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>).</p>
+  <h3>iPhone (Safari)</h3>
+  <p>Open this page in Safari, tap the <b>Share</b> button (the square with an arrow), then <b>Add to Home Screen</b>, then <b>Add</b>.</p>
 
   <h2>Trouble opening the app?</h2>
   <p>If Google shows <b>"Sorry, unable to open the file at present"</b>, your browser is signed in to more than one Google account. Open the link in a private (incognito) tab and sign in with just the account you use for Lugano, or use a browser that has only that account. This is a known Google issue; it doesn't happen with one Google account on the phone.</p>
 </main>
 <footer><div class="bar"><span>© Lugano</span><span><a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of use</a></span></div></footer>
+<script src="/install.js"></script>
+<script>
+  (function () {
+    function show() {
+      document.getElementById('installNow').hidden = !LUGANO_INSTALL.prompt || luganoInstalled();
+      document.getElementById('installDone').hidden = !LUGANO_INSTALL.done;
+    }
+    LUGANO_INSTALL.onChange = show; show();
+    document.getElementById('installBtn').onclick = function () { luganoInstall().then(show); };
+  })();
+</script>
 </body>
 </html>
