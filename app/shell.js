@@ -4,17 +4,21 @@
  *
  * The app says hello from inside the frame ("lugano-app-ready"). If it doesn't (not signed in to Google yet, the
  * browser keeps Google's sign-in out of other sites' frames as iPhones do, or an old version of the app), this page
- * opens the app the usual way, as a page of its own, and skips the frame on this phone for FRAME_PAUSE_H hours.
+ * opens the app the usual way, as a page of its own. After two such misses in a row (an iPhone, say; a first visit
+ * usually misses once for the Google sign-in) it skips the frame on this phone for FRAME_PAUSE_H hours.
  * Files the app shares (photo cards, PDF) come here and are shared from this page (share/share.js).
  */
 var SHELL = { ready: false, started: Date.now(), FRAME_PAUSE_H: 6, LOAD_GRACE_MS: 8000, MAX_WAIT_MS: 35000 };
 function shellTarget() { return luganoTarget('/app', location.search); }
 function shellStore(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
-/** True when the frame failed on this phone a short while ago: open the app directly instead. */
-function shellPaused() { var t = Number(shellStore('lugano_noframe') || 0); return t > 0 && Date.now() - t < SHELL.FRAME_PAUSE_H * 3600000; }
+/** Misses in a row on this phone: {n, t}. */
+function shellMisses() { try { var m = JSON.parse(shellStore('lugano_noframe') || 'null'); return m && typeof m.n === 'number' ? m : { n: 0, t: 0 }; } catch (e) { return { n: 0, t: 0 }; } }
+/** True when the frame missed twice in a row a short while ago: open the app directly instead. */
+function shellPaused() { var m = shellMisses(); return m.n >= 2 && Date.now() - m.t < SHELL.FRAME_PAUSE_H * 3600000; }
 function shellOpenDirect(remember) {
-  if (SHELL.ready) return;
-  if (remember) shellStore('lugano_noframe', String(Date.now()));
+  if (SHELL.ready || SHELL.leaving) return;
+  SHELL.leaving = true;
+  if (remember) shellStore('lugano_noframe', JSON.stringify({ n: shellMisses().n + 1, t: Date.now() }));
   location.replace(shellTarget());
 }
 function shellReady(e) {
