@@ -15,18 +15,23 @@ function shellStore(k, v) { try { if (v === undefined) return localStorage.getIt
 function shellMisses() { try { var m = JSON.parse(shellStore('lugano_noframe') || 'null'); return m && typeof m.n === 'number' ? m : { n: 0, t: 0 }; } catch (e) { return { n: 0, t: 0 }; } }
 /** True when the frame missed twice in a row a short while ago: open the app directly instead. */
 function shellPaused() { var m = shellMisses(); return m.n >= 2 && Date.now() - m.t < SHELL.FRAME_PAUSE_H * 3600000; }
-function shellOpenDirect(remember) {
+/** Seconds since the page opened, for the check line and the last-miss record. */
+function shellSecs() { return Math.round((Date.now() - SHELL.started) / 100) / 10; }
+function shellOpenDirect(remember, why) {
   if (SHELL.ready || SHELL.leaving) return;
+  if (SHELL.check) { shellCheckLine(); return; }                                // check mode: stay and show what happened
   SHELL.leaving = true;
+  shellStore('lugano_lastmiss', JSON.stringify({ at: new Date().toISOString(), why: why || 'paused', load: SHELL.loadAt || null, secs: shellSecs() }));
   if (remember) shellStore('lugano_noframe', JSON.stringify({ n: shellMisses().n + 1, t: Date.now() }));
   location.replace(shellTarget());
 }
 function shellReady(e) {
   try { e.source.postMessage({ type: 'lugano-shell' }, e.origin); } catch (x) { /* the app works without */ }
   if (SHELL.ready) return;
-  SHELL.ready = true;
+  SHELL.ready = true; SHELL.helloAt = shellSecs();
   shellStore('lugano_noframe', null);
   document.getElementById('splash').hidden = true;
+  if (SHELL.check) shellCheckLine();
   shellInstallBar();
 }
 /* ---------- Install bar (Chrome's prompt; never inside the installed app) ---------- */
@@ -48,8 +53,32 @@ function shellMessage(e) {
   if (e.data.type === 'lugano-app-ready') shellReady(e);
   else if (e.data.type === 'lugano-share') shellShare(e);
 }
+/*
+ * Check mode (app.lugano.in/app/?check): never leaves for Google's page; shows the frame as it is (the app, or
+ * Google's "refused to connect" when the sign-in can't happen inside another site) and a line with the timings,
+ * the last miss on this phone and the browser.
+ */
+function shellCheckLine() {
+  var el = document.getElementById('checkLine');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'checkLine';
+    el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:20;background:#111827;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:8px 12px';
+    document.body.appendChild(el);
+  }
+  var last = shellStore('lugano_lastmiss');
+  el.textContent = 'Check ' + new Date().toLocaleTimeString() + ' · frame loaded: ' + (SHELL.loadAt != null ? SHELL.loadAt + ' s' : 'not yet') +
+    ' · app inside: ' + (SHELL.ready ? 'YES at ' + SHELL.helloAt + ' s' : 'no (yet)') +
+    ' · installed: ' + luganoInstalled() + (last ? ' · last miss: ' + last : '') +
+    ' · ' + (navigator.userAgent.match(/(Chrome|CriOS|SamsungBrowser|Firefox|Version)\/[\d.]+/g) || []).join(' ');
+}
 (function () {
   window.addEventListener('message', shellMessage);
+  SHELL.check = /[?&]check\b/.test(location.search);
+  if (SHELL.check) {
+    document.getElementById('splash').hidden = true;
+    shellStore('lugano_noframe', null);
+    setInterval(shellCheckLine, 1000); shellCheckLine();
+  }
   LUGANO_INSTALL.onChange = shellInstallBar;
   document.getElementById('instGo').onclick = function () { luganoInstall().then(shellInstallBar); };
   document.getElementById('instNo').onclick = function () { shellStore('lugano_install_no', String(Date.now())); shellInstallBar(); };
@@ -62,7 +91,10 @@ function shellMessage(e) {
   }
   var frame = document.getElementById('app');
   frame.src = shellTarget();
-  frame.addEventListener('load', function () { setTimeout(function () { shellOpenDirect(true); }, SHELL.LOAD_GRACE_MS); });   // loaded, but no hello
-  setTimeout(function () { shellOpenDirect(true); }, SHELL.MAX_WAIT_MS);
+  frame.addEventListener('load', function () {                                  // loaded, but no hello
+    if (SHELL.loadAt == null) SHELL.loadAt = shellSecs();
+    setTimeout(function () { shellOpenDirect(true, 'no hello ' + SHELL.LOAD_GRACE_MS / 1000 + ' s after load'); }, SHELL.LOAD_GRACE_MS);
+  });
+  setTimeout(function () { shellOpenDirect(true, 'no hello in ' + SHELL.MAX_WAIT_MS / 1000 + ' s'); }, SHELL.MAX_WAIT_MS);
   setTimeout(function () { if (!SHELL.ready) msg.textContent = 'Still opening (Google can be slow the first time)'; }, 9000);
 })();
