@@ -28,6 +28,13 @@
   #splash p{color:var(--muted);margin:0;font-size:16px}
   .dots::after{content:'';animation:dots 1.4s steps(4,end) infinite}
   @keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+  #splash .help{max-width:420px;text-align:left}
+  #splash .help h1{font-size:24px;margin:0 0 8px}
+  #splash .help h2{font-size:17px;margin:22px 0 4px}
+  #splash .help ol{padding-left:20px;margin:6px 0}
+  #splash .help p{color:var(--ink)}
+  #splash .help p.small{color:var(--muted)}
+  #splash{overflow:auto}
   #sharebox{position:fixed;inset:0;z-index:10;background:#fff;overflow:auto}
   #sharebox[hidden]{display:none}
   #sharebox main{padding-top:18px}

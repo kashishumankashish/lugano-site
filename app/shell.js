@@ -13,17 +13,54 @@ function shellTarget() { return luganoTarget('/app', location.search); }
 function shellStore(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 /** Misses in a row on this phone: {n, t}. */
 function shellMisses() { try { var m = JSON.parse(shellStore('lugano_noframe') || 'null'); return m && typeof m.n === 'number' ? m : { n: 0, t: 0 }; } catch (e) { return { n: 0, t: 0 }; } }
-/** True when the frame missed twice in a row a short while ago: open the app directly instead. */
-function shellPaused() { var m = shellMisses(); return m.n >= 2 && Date.now() - m.t < SHELL.FRAME_PAUSE_H * 3600000; }
+function shellAndroid() { return /Android/i.test(navigator.userAgent) && !luganoIsIphone(); }
+/**
+ * True when the app should open as Google's page straight away: the person chose "Always open as Google's page"
+ * (until), or, not on Android, the frame missed twice in a row a short while ago. On Android every open tries the
+ * frame, so allowing app.lugano.in (shellHelp) works at once.
+ */
+function shellPaused() {
+  var m = shellMisses();
+  if (m.until && Date.now() < m.until) return true;
+  return !shellAndroid() && m.n >= 2 && Date.now() - m.t < SHELL.FRAME_PAUSE_H * 3600000;
+}
 /** Seconds since the page opened, for the check line and the last-miss record. */
 function shellSecs() { return Math.round((Date.now() - SHELL.started) / 100) / 10; }
 function shellOpenDirect(remember, why) {
   if (SHELL.ready || SHELL.leaving) return;
   if (SHELL.check) { shellCheckLine(); return; }                                // check mode: stay and show what happened
-  SHELL.leaving = true;
   shellStore('lugano_lastmiss', JSON.stringify({ at: new Date().toISOString(), why: why || 'paused', load: SHELL.loadAt || null, secs: shellSecs() }));
   if (remember) shellStore('lugano_noframe', JSON.stringify({ n: shellMisses().n + 1, t: Date.now() }));
-  location.replace(shellTarget());
+  if (remember && shellAndroid()) return shellHelp();   // say why, and how to fix it
+  shellGo();
+}
+function shellGo() { SHELL.leaving = true; location.replace(shellTarget()); }
+/**
+ * Android, the app didn't come up inside the page: usually Chrome keeps Google's sign-in out of other sites
+ * (third-party cookies blocked; Google answers 401), or the person isn't signed in to Google yet. Shows how to allow
+ * app.lugano.in, and Open the app (Google's own page, as before).
+ */
+function shellHelp() {
+  SHELL.leaving = true;
+  document.getElementById('app').src = 'about:blank';
+  var sp = document.getElementById('splash');
+  sp.hidden = false;
+  sp.innerHTML = '<img src="/wordmark.png" alt="LUGANO">' +
+    '<div class="help"><h1>Open Lugano Orders</h1>' +
+    '<p>Google couldn\'t sign you in inside the app, so it opens as Google\'s page (with Google\'s bar on top).</p>' +
+    '<button class="big" id="helpGo" style="background:#111827">Open the app</button>' +
+    '<h2>Full screen, without Google\'s bar</h2><ol>' +
+    '<li>In <b>Chrome</b>, tap <b>⋮</b> → <b>Settings</b> → <b>Site settings</b> → <b>Third-party cookies</b>.</li>' +
+    '<li>Tap <b>Add site exception</b>, type <b>app.lugano.in</b> and tap <b>Add</b>.</li>' +
+    '<li>Open the Lugano app again.</li></ol>' +
+    '<p class="small">This lets only Lugano\'s site use your Google sign-in. If you have never signed in to Google on this phone, tap Open the app and sign in first.</p>' +
+    '<p><a href="#" id="helpAlways">Always open as Google\'s page on this phone</a></p></div>';
+  document.getElementById('helpGo').onclick = shellGo;
+  document.getElementById('helpAlways').onclick = function (e) {
+    e.preventDefault();
+    shellStore('lugano_noframe', JSON.stringify({ n: shellMisses().n, t: Date.now(), until: Date.now() + 30 * 86400000 }));
+    shellGo();
+  };
 }
 function shellReady(e) {
   try { e.source.postMessage({ type: 'lugano-shell' }, e.origin); } catch (x) { /* the app works without */ }
