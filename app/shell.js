@@ -9,7 +9,7 @@
  * Files the app shares (photo cards, PDF) come here and are shared from this page (share/share.js).
  */
 var SHELL = { ready: false, started: Date.now(), FRAME_PAUSE_H: 6, LOAD_GRACE_MS: 8000, MAX_WAIT_MS: 35000 };
-function shellTarget() { return luganoTarget('/app', location.search); }
+function shellTarget() { return luganoTarget('/app', location.search, SHELL.signin); }
 function shellStore(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 /** Misses in a row on this phone: {n, t}. */
 function shellMisses() { try { var m = JSON.parse(shellStore('lugano_noframe') || 'null'); return m && typeof m.n === 'number' ? m : { n: 0, t: 0 }; } catch (e) { return { n: 0, t: 0 }; } }
@@ -63,6 +63,7 @@ function shellHelp() {
   };
 }
 function shellReady(e) {
+  if (SHELL.signin) return signReady(e);
   try { e.source.postMessage({ type: 'lugano-shell' }, e.origin); } catch (x) { /* the app works without */ }
   if (SHELL.ready) return;
   SHELL.ready = true; SHELL.helloAt = shellSecs();
@@ -85,10 +86,154 @@ function shellShare(e) {
   if (box.hidden) { box.hidden = false; box.scrollTop = 0; try { history.pushState({ luganoShare: 1 }, ''); } catch (x) {} }
 }
 window.addEventListener('popstate', function () { var box = document.getElementById('sharebox'); if (!box.hidden) { box.hidden = true; document.getElementById('box').innerHTML = ''; } });
+/**
+ * True when a message's sender is the app inside our own frame (Google puts the page two frames deep). Any Apps Script
+ * page on the internet has an origin that looks like ours, and one of them could open this site in a new tab and say
+ * hello to it; without this check it would be handed the person's sign-in.
+ */
+function shellFromFrame(src) {
+  var f = document.getElementById('app').contentWindow, w = src;
+  try { for (var i = 0; i < 6 && w; i++) { if (w === f) return true; if (w === w.parent) return false; w = w.parent; } } catch (e) { /* not ours */ }
+  return false;
+}
 function shellMessage(e) {
-  if (!luganoAppOrigin(e.origin) || !e.data) return;
+  if (!luganoAppOrigin(e.origin) || !e.data || !shellFromFrame(e.source)) return;
   if (e.data.type === 'lugano-app-ready') shellReady(e);
   else if (e.data.type === 'lugano-share') shellShare(e);
+  else if (SHELL.signin && e.data.type === 'lugano-session') signSession(e.data);
+  else if (SHELL.signin && e.data.type === 'lugano-signin-failed') signFailed(e.data.error);
+  else if (SHELL.signin && e.data.type === 'lugano-signout') signOut(e.data.why);
+}
+
+/* ---------- Sign in with Google (go.js: LUGANO_FRONT, LUGANO_GSI, LUGANO_SIGNIN) ----------
+ * The app in the frame comes from the front script and doesn't know who is using it. This page shows Google's
+ * "Sign in with Google" button; Google gives it an ID token (name + email, nothing else), which goes to the app in
+ * the frame and from there to Lugano's backend, which checks it with Google and answers with a session for 30 days.
+ * The session is kept here (this site's storage on this phone) and handed to the app every time it opens.
+ */
+var SIGN = { session: null, app: null, credential: null, gsi: 0, waitTimer: null };
+function signStored() {
+  try { var s = JSON.parse(shellStore('lugano_session') || 'null'); return s && s.email && s.sig && Number(s.exp) > Date.now() + 60000 ? s : null; } catch (e) { return null; }
+}
+/** Browsers inside other apps (Instagram, Facebook…): Google refuses to sign anyone in there. */
+function signInApp() { return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|Snapchat|LinkedInApp|Twitter|; wv\)/i.test(navigator.userAgent || ''); }
+function signStart() {
+  SIGN.session = signStored();
+  var msg = document.getElementById('splashMsg');
+  if (navigator.onLine === false) {
+    msg.className = ''; msg.textContent = 'No internet. The app opens when you are back online.';
+    window.addEventListener('online', function () { location.reload(); });
+    return;
+  }
+  var frame = document.getElementById('app');
+  frame.src = shellTarget();                                   // loads behind the sign-in screen, so it is ready by then
+  frame.addEventListener('load', function () { if (SHELL.loadAt == null) SHELL.loadAt = shellSecs(); setTimeout(signStuck, SHELL.LOAD_GRACE_MS + 4000); });
+  setTimeout(signStuck, SHELL.MAX_WAIT_MS);
+  if (SIGN.session) setTimeout(function () { if (!SHELL.ready) msg.textContent = 'Still opening (Google can be slow the first time)'; }, 9000);
+  else signScreen();
+}
+/** The app in the frame never said hello: nothing to fall back to, so say so and offer to try again. */
+function signStuck() {
+  if (SIGN.app || SHELL.stuck) return;
+  if (!SIGN.session && !SIGN.credential) { SHELL.stuckLater = true; return; }   // on the sign-in screen: only matters once they sign in
+  SHELL.stuck = true;
+  var sp = document.getElementById('splash');
+  sp.hidden = false;
+  sp.innerHTML = '<img src="/wordmark.png" alt="LUGANO"><div class="help" style="text-align:center"><h1>The app didn\'t open</h1>' +
+    '<p>Check your internet connection and try again.</p><button class="big" id="signRetry" style="background:#111827">Try again</button></div>';
+  document.getElementById('signRetry').onclick = function () { location.reload(); };
+}
+function signScreen(note) {
+  var sp = document.getElementById('splash');
+  sp.hidden = false;
+  var inApp = signInApp(), here = location.origin + location.pathname + location.search;
+  sp.innerHTML = '<img src="/wordmark.png" alt="LUGANO"><div class="help" style="text-align:center"><h1>Lugano Orders</h1>' +
+    '<p>Sign in to see our designs with live stock and to order.</p>' +
+    (inApp ? '<p><b>Google sign-in doesn\'t work inside this app\'s browser.</b> Open this page in ' + (luganoIsIphone() ? 'Safari' : 'Chrome') + ':</p>' +
+      (luganoIsIphone() ? '<p>Tap <b>⋯</b> (or the compass) and choose <b>Open in browser</b>.</p>'
+        : '<p><a class="big" style="display:inline-block;background:#111827;color:#fff;text-decoration:none" href="intent://' + here.replace(/^https:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end">Open in Chrome</a></p>') +
+      '<p class="small">Or copy this link into your browser: ' + location.host + location.pathname + '</p>'
+      : '<div id="gsiBtn" style="display:flex;justify-content:center;min-height:44px;margin:18px 0"></div>') +
+    '<p id="signMsg" class="small" role="status">' + (note || '') + '</p>' +
+    '<p class="small">Lugano receives only your name and email address from Google. <a href="/privacy.html">Privacy policy</a></p></div>';
+  if (!inApp) signGsi();
+}
+function signGsi() {
+  var draw = function () {
+    var box = document.getElementById('gsiBtn');
+    if (!box || !window.google || !google.accounts || !google.accounts.id) return;
+    if (SIGN.gsi < 2) {
+      google.accounts.id.initialize({ client_id: LUGANO_GSI, callback: signCredential, auto_select: true, cancel_on_tap_outside: false, use_fedcm_for_prompt: true, itp_support: true });
+      SIGN.gsi = 2;
+    }
+    google.accounts.id.renderButton(box, { type: 'standard', theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
+      width: Math.max(200, Math.min(320, (window.innerWidth || 360) - 48)) });
+    try { google.accounts.id.prompt(); } catch (e) { /* the button is enough */ }
+  };
+  if (SIGN.gsi >= 1) return draw();
+  SIGN.gsi = 1;
+  var sc = document.createElement('script');
+  sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+  sc.onload = draw;
+  sc.onerror = function () {
+    SIGN.gsi = 0;
+    var m = document.getElementById('signMsg');
+    if (m) m.innerHTML = 'Couldn\'t load Google\'s sign-in. Check your internet (or switch off an ad blocker for this site). <a href="#" id="signAgain">Try again</a>';
+    var a = document.getElementById('signAgain'); if (a) a.onclick = function (e) { e.preventDefault(); signScreen(); };
+  };
+  document.head.appendChild(sc);
+}
+/** Google's answer to the button (an ID token). */
+function signCredential(resp) {
+  if (!resp || !resp.credential) return;
+  SIGN.credential = String(resp.credential);
+  var m = document.getElementById('signMsg'); if (m) { m.className = 'small dots'; m.textContent = 'Signing you in'; }
+  var b = document.getElementById('gsiBtn'); if (b) b.style.visibility = 'hidden';
+  signSend();
+  if (SHELL.stuckLater) signStuck();
+  clearTimeout(SIGN.waitTimer);
+  SIGN.waitTimer = setTimeout(function () { if (!SIGN.session) signFailed('Lugano didn\'t answer. Please try again.'); }, 30000);
+}
+function signSend() {
+  if (!SIGN.app || !SIGN.credential) return;                    // the app in the frame isn't up yet: signReady sends it
+  try { SIGN.app.win.postMessage({ type: 'lugano-credential', credential: SIGN.credential }, SIGN.app.origin); } catch (e) { signFailed('Please try again.'); }
+}
+/** The app in the frame said hello: hand it the session if this phone has one, or the token just received. */
+function signReady(e) {
+  SIGN.app = { win: e.source, origin: e.origin };
+  try { e.source.postMessage(SIGN.session ? { type: 'lugano-shell', session: SIGN.session } : { type: 'lugano-shell' }, e.origin); } catch (x) { /* it asks again */ }
+  if (SIGN.session) signShow(); else signSend();
+}
+function signShow() {
+  clearTimeout(SIGN.waitTimer);
+  SHELL.ready = true; SHELL.helloAt = shellSecs();
+  document.getElementById('splash').hidden = true;
+  shellInstallBar();
+}
+/** The backend's session for this person (after signing in, or a renewed one): kept on this phone. */
+function signSession(d) {
+  var s = d && d.session;
+  if (!s || !s.email || !s.sig || !(Number(s.exp) > Date.now())) return;
+  SIGN.session = { email: String(s.email), exp: Number(s.exp), sig: String(s.sig) }; SIGN.credential = null;
+  shellStore('lugano_session', JSON.stringify(SIGN.session));
+  signShow();
+}
+function signFailed(error) {
+  clearTimeout(SIGN.waitTimer);
+  SIGN.credential = null;
+  signScreen(String(error || 'Sign-in didn\'t work. Please try again.').slice(0, 200));
+}
+/** why 'expired': the backend no longer takes the session. 'user': Sign out in the app (the app starts afresh). */
+function signOut(why) {
+  SIGN.session = null; SIGN.credential = null; SHELL.ready = false;
+  shellStore('lugano_session', null);
+  document.getElementById('inst').hidden = true;
+  if (why === 'user') {
+    try { google.accounts.id.disableAutoSelect(); } catch (e) { /* not loaded */ }
+    SIGN.app = null;
+    document.getElementById('app').src = shellTarget();
+  }
+  signScreen(why === 'user' ? '' : 'Please sign in again.');
 }
 /*
  * Check mode (app.lugano.in/app/?check): never leaves for Google's page; shows the frame as it is (the app, or
@@ -119,6 +264,8 @@ function shellCheckLine() {
   LUGANO_INSTALL.onChange = shellInstallBar;
   document.getElementById('instGo').onclick = function () { luganoInstall().then(shellInstallBar); };
   document.getElementById('instNo').onclick = function () { shellStore('lugano_install_no', String(Date.now())); shellInstallBar(); };
+  SHELL.signin = luganoSigninOn(location.search);
+  if (SHELL.signin) return signStart();
   if (shellPaused()) return shellOpenDirect(false);
   var msg = document.getElementById('splashMsg');
   if (navigator.onLine === false) {
