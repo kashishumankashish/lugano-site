@@ -1,0 +1,4 @@
+# app.lugano.in on Netlify: the same files as on GitHub Pages (no build), plus the link-preview function.
+[build]
+  publish = "."
+  edge_functions = "netlify/edge-functions"
