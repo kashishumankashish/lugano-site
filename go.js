@@ -1,4 +1,22 @@
 /*
+ * MOVED (13 Nov 2026): Lugano Orders now runs on Lugano's own server. This site is served by GitHub Pages, which
+ * can't pass requests on, so every app page and short link here forwards to the same path there, carrying the
+ * phone's sign-in and the bag the old app handed over (after "#handoff=", which browsers never send to a server)
+ * so nobody signs in again. To go back to the old app: set LUGANO_MOVED = '' (and switch back on the Server screen).
+ */
+var LUGANO_MOVED = 'https://lugano-order-app.vercel.app';
+(function () {
+  if (!LUGANO_MOVED || location.origin === LUGANO_MOVED) return;
+  var h = {}, frag = '';
+  try {
+    var s = localStorage.getItem('lugano_session'); if (s) h.s = s;
+    var k = localStorage.getItem('lugano_keep'); if (k && k.length < 200000) h.k = k;
+    if (h.s || h.k) frag = '#handoff=' + encodeURIComponent(JSON.stringify(h));
+  } catch (e) { /* private mode: they sign in once more */ }
+  location.replace(LUGANO_MOVED + location.pathname + location.search + frag);
+})();
+
+/*
  * Short links to the Lugano Orders app (the user agreed to keep the Order App's public link here; it is the same
  * link customers receive. Never put the backend's link or the secret in this repository).
  *   app.lugano.in/app            → the app (app/index.html: the app full screen, installable)
