@@ -1,4 +1,12 @@
-# app.lugano.in on Netlify: the same files as on GitHub Pages (no build), plus the link-preview function.
+# app.lugano.in after the switch-over (Nov 2026): every page and call is served by Lugano's own server on Vercel
+# (repository lugano-order-app). The address stays app.lugano.in, so phones keep their sign-in and their bag.
+# Later the domain can point straight at Vercel (DNS), and Netlify drops out; until then Netlify only passes requests on.
+# To go back: revert this commit (the old app, Google Apps Script, is framed again).
 [build]
   publish = "."
-  edge_functions = "netlify/edge-functions"
+
+[[redirects]]
+  from = "/*"
+  to = "https://lugano-order-app.vercel.app/:splat"
+  status = 200
+  force = true
