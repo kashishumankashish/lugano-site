@@ -100,9 +100,23 @@ function shellMessage(e) {
   if (!luganoAppOrigin(e.origin) || !e.data || !shellFromFrame(e.source)) return;
   if (e.data.type === 'lugano-app-ready') shellReady(e);
   else if (e.data.type === 'lugano-share') shellShare(e);
+  else if (e.data.type === 'lugano-keep') shellKeep(e.data);
   else if (SHELL.signin && e.data.type === 'lugano-session') signSession(e.data);
   else if (SHELL.signin && e.data.type === 'lugano-signin-failed') signFailed(e.data.error);
   else if (SHELL.signin && e.data.type === 'lugano-signout') signOut(e.data.why);
+}
+
+/**
+ * Moving to Lugano's own server (Nov 2026): the old app (inside Google's frame) hands over what it keeps on this phone
+ * (bag with its order pads, filters, guest details) after every change. It is kept here, in this site's storage, where
+ * the new app (served from this same site) takes it over once (Index.html keepAdopt).
+ */
+function shellKeep(d) {
+  if (!d || !d.keep || typeof d.keep !== 'object') return;
+  var keep = {}, size = 0;
+  Object.keys(d.keep).forEach(function (k) { if (/^ob_[a-z_0-9]+$/.test(k) && typeof d.keep[k] === 'string') { keep[k] = d.keep[k]; size += d.keep[k].length; } });
+  if (size > 1500000) return;
+  shellStore('lugano_keep', JSON.stringify({ at: Date.now(), email: String(d.email || '').toLowerCase(), keep: keep }));
 }
 
 /* ---------- Sign in with Google (go.js: LUGANO_FRONT, LUGANO_GSI, LUGANO_SIGNIN) ----------
