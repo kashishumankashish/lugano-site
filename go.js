@@ -12,6 +12,7 @@ var LUGANO_MOVED = 'https://lugano-order-app.vercel.app';
     var s = localStorage.getItem('lugano_session'); if (s) h.s = s;
     var k = localStorage.getItem('lugano_keep'); if (k && k.length < 200000) h.k = k;
     if (h.s || h.k) frag = '#handoff=' + encodeURIComponent(JSON.stringify(h));
+    if (k) localStorage.removeItem('lugano_keep');           // handed over once; never again later
   } catch (e) { /* private mode: they sign in once more */ }
   location.replace(LUGANO_MOVED + location.pathname + location.search + frag);
 })();
