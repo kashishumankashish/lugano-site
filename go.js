@@ -15,8 +15,8 @@ var LUGANO_APP = 'https://script.google.com/macros/s/AKfycbyxmQUfgWAdoBdF3WKMJQX
  *                   'on'  : everyone
  * While either of the first two is empty, nothing changes.
  */
-var LUGANO_FRONT = '';
-var LUGANO_GSI = '';
+var LUGANO_FRONT = 'https://script.google.com/macros/s/AKfycbz4TAA3R9wQhIiBUtTlcafBm3i5Jd0z36ZUrdJC7AVDmRzzndE7K3Ns6NWxgEoF-xa5/exec';
+var LUGANO_GSI = '167967428087-brof0n7r5orhj528cau6shgrottrdnqm.apps.googleusercontent.com';
 var LUGANO_SIGNIN = 'test';
 function luganoSigninOn(search) {
   if (!LUGANO_FRONT || !LUGANO_GSI) return false;
